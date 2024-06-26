@@ -52,25 +52,48 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         res.status(500).send('Error uploading file: ' + err);
     }
 });
+
+
 app.post('/balance', async (req, res) => {
     try {
-        const timestamp = new Date(req.body.timestamp);
-        const trades = await Trade.find({ utcTime: { $lte: timestamp } });
+        const { timestamp } = req.body;
+        const utcTime = new Date(timestamp);
 
-        const balances = trades.reduce((acc, trade) => {
+        console.log(`Requested timestamp: ${utcTime}`);
+
+        // Fetch trades that occurred on or before the specified timestamp
+        const trades = await Trade.find({ utcTime: { $lte: utcTime.toISOString() } });
+
+        console.log(`Fetched trades:`);
+        console.log(trades); // Log trades fetched for debugging
+
+        // Initialize an object to store balances
+        const balances = {};
+
+        // Process each trade to calculate balances
+        trades.forEach(trade => {
             const { baseCoin, amount, operation } = trade;
 
-            if (!acc[baseCoin]) {
-                acc[baseCoin] = 0;
+            // Ensure baseCoin is initialized in balances
+            if (!(baseCoin in balances)) {
+                balances[baseCoin] = 0;
             }
 
-            acc[baseCoin] += (operation === 'BUY' ? 1 : -1) * amount;
+            // Update balance based on operation (BUY or SELL)
+            if (operation === 'Buy') { // Adjusted operation comparison
+                balances[baseCoin] += amount;
+            } else if (operation === 'Sell') { // Adjusted operation comparison
+                balances[baseCoin] -= amount;
+            }
+        });
 
-            return acc;
-        }, {});
+        console.log(`Calculated balances:`);
+        console.log(balances); // Log calculated balances for debugging
 
         res.json(balances);
     } catch (err) {
-        res.status(500).send('Error calculating balances: ' + err);
+        console.error('Error calculating balances:', err);
+        res.status(500).send('Error calculating balances: ' + err.message);
     }
 });
+
